@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ContractSigner — Review & Sign</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    --ink: #0f0f0f;
+    --ink2: #3a3a3a;
+    --ink3: #7a7a7a;
+    --paper: #faf8f4;
+    --paper2: #f0ede6;
+    --paper3: #e4dfd5;
+    --accent: #1a4a3c;
+    --accent2: #2d7a62;
+    --accent-light: #e8f5f0;
+    --danger: #c0392b;
+    --warn: #d4891a;
+    --border: #d8d3c9;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    font-size: 15px;
+  }
+  header {
+    background: var(--accent);
+    color: #fff;
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    height: 60px;
+  }
+  .logo { font-family: 'DM Serif Display', serif; font-size: 1.4rem; letter-spacing: -0.02em; }
+  .badge {
+    background: rgba(255,255,255,0.15);
+    font-size: 0.7rem;
+    font-family: 'DM Mono', monospace;
+    padding: 2px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .screen { display: none; min-height: calc(100vh - 60px); }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* Gate screen */
+  #screen-gate {
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+  .gate-box {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2.5rem;
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 4px 24px rgba(15,15,15,0.08);
+  }
+  .gate-icon { font-size: 3rem; margin-bottom: 1rem; }
+  .gate-title { font-family: 'DM Serif Display', serif; font-size: 1.6rem; color: var(--accent); margin-bottom: 0.5rem; }
+  .gate-sub { font-size: 0.88rem; color: var(--ink3); margin-bottom: 2rem; line-height: 1.5; }
+
+  .code-input {
+    display: flex;
+    gap: 0;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+    transition: border-color 0.2s;
+  }
+  .code-input:focus-within { border-color: var(--accent2); }
+  .code-input input {
+    flex: 1;
+    border: none;
+    padding: 14px 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 1.1rem;
+    letter-spacing: 0.2em;
+    text-align: center;
+    background: transparent;
+    color: var(--ink);
+    outline: none;
+  }
+  .code-input button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 0 1.5rem;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.18s;
+  }
+  .code-input button:hover { background: var(--accent2); }
+
+  .error-shake { animation: shake 0.35s ease; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+
+  /* Review screen */
+  #screen-review {
+    padding: 0;
+  }
+  .review-layout {
+    display: flex;
+    height: calc(100vh - 60px);
+  }
+  .pdf-panel {
+    flex: 1;
+    overflow-y: auto;
+    background: #525659;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+  .pdf-panel canvas { box-shadow: 0 4px 20px rgba(0,0,0,0.35); max-width: 100%; }
+  .pdf-loading { color: #ccc; padding: 3rem; font-size: 0.9rem; }
+
+  .side-panel {
+    width: 340px;
+    flex-shrink: 0;
+    background: #fff;
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .side-inner { padding: 1.5rem; flex: 1; }
+  .side-title { font-family: 'DM Serif Display', serif; font-size: 1.15rem; color: var(--accent); margin-bottom: 0.3rem; }
+  .side-sub { font-size: 0.8rem; color: var(--ink3); margin-bottom: 1.25rem; }
+
+  label { display: block; font-size: 0.8rem; font-weight: 500; color: var(--ink2); margin-bottom: 5px; }
+  input[type=text] {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.88rem;
+    background: var(--paper);
+    color: var(--ink);
+    margin-bottom: 1rem;
+  }
+  input[type=text]:focus { outline: none; border-color: var(--accent2); }
+
+  .sig-wrap {
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    position: relative;
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+  }
+  .sig-wrap canvas { display: block; touch-action: none; cursor: crosshair; width: 100%; }
+  .sig-guide {
+    position: absolute;
+    bottom: 32px;
+    left: 5%; right: 5%;
+    border-bottom: 1.5px dashed var(--paper3);
+    pointer-events: none;
+  }
+  .sig-label {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.68rem;
+    color: var(--ink3);
+    font-family: 'DM Mono', monospace;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: none;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.18s;
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-outline { background: transparent; color: var(--ink2); border: 1.5px solid var(--border); }
+  .btn-outline:hover { border-color: var(--ink2); }
+  .btn-warn { background: #fff8e1; color: var(--warn); border: 1.5px solid #ffe082; }
+  .btn-warn:hover { background: #fff3c4; }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+
+  .msg { padding: 10px 12px; border-radius: 8px; font-size: 0.82rem; margin-bottom: 0.75rem; }
+  .msg-error { background: #fdf0ef; color: var(--danger); border: 1px solid #f5c6c2; }
+  .msg-success { background: var(--accent-light); color: var(--accent); border: 1px solid #b2dfd0; }
+  .msg-info { background: #e8f4fd; color: #1a6fa0; border: 1px solid #b5d9f5; }
+
+  textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    background: var(--paper);
+    color: var(--ink);
+    resize: vertical;
+    min-height: 80px;
+    margin-bottom: 0.75rem;
+  }
+  textarea:focus { outline: none; border-color: var(--accent2); }
+
+  /* Confirm modal */
+  .modal-backdrop {
+    display: none;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15,15,15,0.5);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: #fff;
+    border-radius: var(--radius);
+    padding: 2rem;
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+  }
+  .modal-title { font-family: 'DM Serif Display', serif; font-size: 1.3rem; color: var(--accent); margin-bottom: 0.5rem; }
+  .modal-body { font-size: 0.88rem; color: var(--ink2); margin-bottom: 1.5rem; line-height: 1.6; }
+  .modal-actions { display: flex; gap: 0.75rem; }
+  .modal-actions .btn { margin-bottom: 0; }
+
+  /* Success screen */
+  #screen-done {
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+  .done-box {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2.5rem;
+    max-width: 480px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 4px 24px rgba(15,15,15,0.08);
+  }
+  .done-icon { font-size: 3.5rem; margin-bottom: 1rem; }
+  .done-title { font-family: 'DM Serif Display', serif; font-size: 1.8rem; color: var(--accent); margin-bottom: 0.5rem; }
+  .done-sub { font-size: 0.9rem; color: var(--ink3); margin-bottom: 2rem; }
+
+  @media(max-width: 700px) {
+    .review-layout { flex-direction: column; height: auto; }
+    .side-panel { width: 100%; border-left: none; border-top: 1px solid var(--border); }
+    .pdf-panel { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">ContractSigner</div>
+  <span class="badge">Client Review</span>
+</header>
+
+<!-- Screen: Gate -->
+<div class="screen active" id="screen-gate">
+  <div class="gate-box">
+    <div class="gate-icon">🔐</div>
+    <div class="gate-title">Enter security code</div>
+    <div class="gate-sub">Your developer shared a private code with you. Enter it below to access the contract.</div>
+    <div id="gateMsg"></div>
+    <div class="code-input" id="codeInputWrap">
+      <input type="text" id="codeField" placeholder="Enter code" autocomplete="off" onkeydown="if(event.key==='Enter')verifyCode()">
+      <button onclick="verifyCode()">Unlock</button>
+    </div>
+    <div style="font-size:0.78rem; color:var(--ink3);">The code was shared by your developer separately — not in this link.</div>
+  </div>
+</div>
+
+<!-- Screen: Review & Sign -->
+<div class="screen" id="screen-review" style="position:relative">
+  <div class="review-layout">
+    <div class="pdf-panel" id="pdfPanel">
+      <div class="pdf-loading" id="pdfLoading">Loading contract…</div>
+    </div>
+    <div class="side-panel">
+      <div class="side-inner">
+        <div class="side-title">Review & Sign</div>
+        <div class="side-sub">Read the contract on the left, then sign below.</div>
+
+        <div id="reviewMsg"></div>
+
+        <label>Your name (optional)</label>
+        <input type="text" id="clientName" placeholder="Full name">
+
+        <label>Your signature</label>
+        <div class="sig-wrap">
+          <canvas id="clientCanvas" width="840" height="220"></canvas>
+          <div class="sig-guide"></div>
+          <div class="sig-label">Sign above this line</div>
+        </div>
+        <div style="display:flex; gap:0.5rem; margin-bottom:1rem;">
+          <button class="btn btn-outline" style="width:auto; padding:7px 14px; margin:0" onclick="clearSig()">Clear</button>
+        </div>
+
+        <button class="btn btn-primary" onclick="showConfirmModal()">Sign & submit contract →</button>
+
+        <hr class="divider">
+
+        <div style="font-size:0.8rem; color:var(--ink3); margin-bottom:0.5rem; font-weight:500;">Request changes instead?</div>
+        <textarea id="amendNote" placeholder="Describe the changes you'd like…"></textarea>
+        <button class="btn btn-warn" onclick="sendAmendment()">Request amendment</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm modal -->
+  <div class="modal-backdrop" id="confirmModal">
+    <div class="modal">
+      <div class="modal-title">Confirm your signature</div>
+      <div class="modal-body">By clicking <strong>Sign contract</strong>, you agree to the terms displayed and confirm that your drawn signature represents your legal consent.</div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitSign()">Sign contract</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Screen: Done -->
+<div class="screen" id="screen-done">
+  <div class="done-box">
+    <div class="done-icon">✅</div>
+    <div class="done-title">Contract signed!</div>
+    <div class="done-sub">Both parties have signed. Download your copy below — a copy will also be emailed to both parties.</div>
+    <button class="btn btn-primary" style="margin-bottom:0.5rem" onclick="downloadFinal()">Download signed contract (PDF)</button>
+    <div style="font-size:0.78rem; color:var(--ink3); margin-top:0.5rem;">Keep this for your records.</div>
+  </div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const contractId = location.pathname.split('/sign/')[1];
+let verifiedCode = null;
+let pdfData = null;
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+async function verifyCode() {
+  const code = document.getElementById('codeField').value.trim();
+  if (!code) return;
+
+  try {
+    const res = await fetch(`/api/contracts/${contractId}/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      document.getElementById('codeInputWrap').classList.add('error-shake');
+      setTimeout(() => document.getElementById('codeInputWrap').classList.remove('error-shake'), 400);
+      document.getElementById('gateMsg').innerHTML = `<div class="msg msg-error">${data.error || 'Incorrect code. Try again.'}</div>`;
+      return;
+    }
+    verifiedCode = code;
+
+    if (data.status === 'client_signed') {
+      showScreen('screen-done');
+      return;
+    }
+
+    // Load PDF
+    showScreen('screen-review');
+    await loadPDF();
+    initSigCanvas();
+  } catch(e) {
+    document.getElementById('gateMsg').innerHTML = `<div class="msg msg-error">Something went wrong. Please try again.</div>`;
+  }
+}
+
+async function loadPDF() {
+  try {
+    const res = await fetch(`/api/contracts/${contractId}/pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: verifiedCode })
+    });
+    const data = await res.json();
+    pdfData = data.pdf;
+
+    const pdfBytes = Uint8Array.from(atob(data.pdf), c => c.charCodeAt(0));
+    const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+    const panel = document.getElementById('pdfPanel');
+    document.getElementById('pdfLoading').remove();
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 1.5 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d');
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      panel.appendChild(canvas);
+    }
+  } catch(e) {
+    document.getElementById('pdfLoading').textContent = 'Failed to load PDF.';
+  }
+}
+
+function initSigCanvas() {
+  const canvas = document.getElementById('clientCanvas');
+  canvas.width = canvas.offsetWidth || 300;
+
+  const ctx = canvas.getContext('2d');
+  ctx.strokeStyle = '#0f0f0f';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  let drawing = false, lastX = 0, lastY = 0;
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if (e.touches) return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY };
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  }
+  canvas.addEventListener('mousedown', e => { drawing = true; const p = getPos(e); lastX = p.x; lastY = p.y; });
+  canvas.addEventListener('mousemove', e => {
+    if (!drawing) return;
+    const p = getPos(e); ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
+    lastX = p.x; lastY = p.y;
+  });
+  canvas.addEventListener('mouseup', () => drawing = false);
+  canvas.addEventListener('mouseleave', () => drawing = false);
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; const p = getPos(e); lastX = p.x; lastY = p.y; }, { passive: false });
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault(); if (!drawing) return;
+    const p = getPos(e); ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
+    lastX = p.x; lastY = p.y;
+  }, { passive: false });
+  canvas.addEventListener('touchend', () => drawing = false);
+}
+
+function clearSig() {
+  const canvas = document.getElementById('clientCanvas');
+  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function isCanvasEmpty(canvas) {
+  const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+  return !data.some(v => v !== 0);
+}
+
+function showConfirmModal() {
+  const canvas = document.getElementById('clientCanvas');
+  if (isCanvasEmpty(canvas)) {
+    document.getElementById('reviewMsg').innerHTML = '<div class="msg msg-error">Please draw your signature first.</div>';
+    return;
+  }
+  document.getElementById('reviewMsg').innerHTML = '';
+  document.getElementById('confirmModal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('confirmModal').classList.remove('show');
+}
+
+async function submitSign() {
+  closeModal();
+  const canvas = document.getElementById('clientCanvas');
+  const signatureDataUrl = canvas.toDataURL('image/png');
+  const clientName = document.getElementById('clientName').value.trim();
+
+  const btn = document.querySelector('#screen-review .btn-primary');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+
+  try {
+    const res = await fetch(`/api/contracts/${contractId}/client-sign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: verifiedCode, signatureDataUrl, clientName })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showScreen('screen-done');
+  } catch(e) {
+    document.getElementById('reviewMsg').innerHTML = `<div class="msg msg-error">${e.message}</div>`;
+    btn.disabled = false; btn.textContent = 'Sign & submit contract →';
+  }
+}
+
+async function sendAmendment() {
+  const note = document.getElementById('amendNote').value.trim();
+  if (!note) { document.getElementById('reviewMsg').innerHTML = '<div class="msg msg-error">Please describe the changes you want.</div>'; return; }
+
+  try {
+    const res = await fetch(`/api/contracts/${contractId}/amendment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: verifiedCode, note })
+    });
+    if (!res.ok) throw new Error('Failed');
+    document.getElementById('reviewMsg').innerHTML = '<div class="msg msg-success">Amendment request sent. Your developer will be in touch.</div>';
+    document.getElementById('amendNote').value = '';
+  } catch(e) {
+    document.getElementById('reviewMsg').innerHTML = '<div class="msg msg-error">Failed to send. Please try again.</div>';
+  }
+}
+
+async function downloadFinal() {
+  try {
+    const res = await fetch(`/api/contracts/${contractId}/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: verifiedCode })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    const bytes = Uint8Array.from(atob(data.pdf), c => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `signed-contract.pdf`; a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('Download failed. Please try again.');
+  }
+}
+</script>
+</body>
+</html>
